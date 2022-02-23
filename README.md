@@ -38,8 +38,8 @@ add_executable(my_app "main.cpp")
 
 ```cpp
 // my_app.cpp
-#include <Gui/Gui.hpp>
-#include <Util/Util.hpp>
+#include <Gui.hpp>
+#include <Util.hpp>
 
 using namespace gui;
 using namespace util;
