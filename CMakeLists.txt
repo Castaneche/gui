@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.13.0)
 # USER OPTIONS
 #===============================================================================
 
+option(GUI_NATIVE_DIAGS      "Turn ON to build native file dialog support" ON)
 option(UTIL_DEFAULT_LOG      "Turn ON to enable a default log output to console/file" ON)
 
 #===============================================================================
