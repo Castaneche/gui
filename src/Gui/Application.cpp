@@ -542,9 +542,9 @@ static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale) {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;    // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;  // Enable Multi-Viewport / Platform Windows
-    // io.ConfigViewportsNoAutoMerge = true;
-    // io.ConfigViewportsNoTaskBarIcon = true;
+    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;  // Enable Multi-Viewport / Platform Windows
+    //io.ConfigViewportsNoAutoMerge = true;
+    //io.ConfigViewportsNoTaskBarIcon = true;
 
     // we are doing 4X MSAA with GLFW
     // ImGui::GetStyle().AntiAliasedFill = false;
@@ -557,8 +557,8 @@ static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale) {
     font_cfg.OversampleH          = 1;
     font_cfg.OversampleV          = 1;
     font_cfg.FontDataOwnedByAtlas = false;
-    strcpy(font_cfg.Name, "Roboto Mono Bold");
-    io.Fonts->AddFontFromMemoryTTF(RobotoMono_Bold_ttf, RobotoMono_Bold_ttf_len, IM_ROUND(15.0f * dpi_scale), &font_cfg);
+    strcpy(font_cfg.Name, "Roboto Regular");
+    io.Fonts->AddFontFromMemoryTTF(Roboto_Regular_ttf, Roboto_Regular_ttf_len, IM_ROUND(16.0f * dpi_scale), &font_cfg);
 
     ImFontConfig icons_config;
     icons_config.MergeMode            = true;
