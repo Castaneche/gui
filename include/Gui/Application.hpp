@@ -49,6 +49,7 @@ public:
         bool vsync             = true;       ///< should VSync be enabled?
         bool dpi_aware         = false;      ///< does the application scale for high DPI? (WIP, DO NOT USE!!!)
         bool gl_forward_compat = true;       ///< should GLFW_OPENGL_FORWARD_COMPAT be set? Always set on Mac.
+        bool power_save        = true;       ///< improve perfs by replacing callback to update rendering only when input is sent
         Color background  = {0, 0, 0, 1};    ///< OpenGL clear color, i.e. window background color
     };
 
@@ -95,6 +96,8 @@ public:
     Vec2 get_window_size() const;
     /// Sets the limits that the user can size the window if resizable (pass -1 for no limit)
     void set_window_size_limits(int min_width, int min_height, int max_width, int max_height);
+    //set power save value
+    void set_power_save(bool val);
     /// Center the window on a monitor
     void center_window(int monitor = 0);
     /// Minimizes the window

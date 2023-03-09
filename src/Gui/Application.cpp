@@ -36,6 +36,7 @@ namespace {
 // GLFW
 static void glfw_context_version(bool gl_forward_compat);
 static void glfw_setup_window_callbacks(GLFWwindow *window, void *userPointer);
+void glfw_setup_window_callbacks_with_power_save(GLFWwindow* window, void* userPointer);
 static void glfw_error_callback(int error, const char *description);
 static void glfw_pos_callback(GLFWwindow *window, int xpos, int ypos);
 static void glfw_size_callback(GLFWwindow *window, int width, int height);
@@ -43,8 +44,52 @@ static void glfw_close_callback(GLFWwindow *window);
 static void glfw_key_callback(GLFWwindow *, int key, int scancode, int action, int mods);
 static void glfw_drop_callback(GLFWwindow *window, int count, const char **paths);
 // IMGUI
-static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale);
+static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale, bool power_save);
 }  // namespace
+
+
+/* Power Saving functions and variables */
+const int POWERSAVEDRAWNUM = 3;
+int powerSaveCountDown = POWERSAVEDRAWNUM;
+
+static void ResetPowerSaveCountDown() {
+    powerSaveCountDown = POWERSAVEDRAWNUM;
+}
+static void WindowResizeCallback(GLFWwindow* window, int width, int height) {
+    ResetPowerSaveCountDown();
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    app->on_window_resized.emit(width, height);
+}
+static void WindowPosCallback(GLFWwindow* window, int xpos, int ypos) {
+    ResetPowerSaveCountDown();
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    app->on_window_moved.emit(xpos, ypos);
+}
+static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    ResetPowerSaveCountDown();
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    app->on_keyboard.emit(key, scancode, action, mods);
+}
+static void CharCallback(GLFWwindow* window, unsigned int character)
+{
+    ResetPowerSaveCountDown();
+    ImGui_ImplGlfw_CharCallback(window, character);
+}
+static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    ResetPowerSaveCountDown();
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+}
+static void MousePosCallback(GLFWwindow* window, double x, double y) {
+    ResetPowerSaveCountDown();
+}
+static void MouseWheelCallback(GLFWwindow* window, double x, double y)
+{
+    ResetPowerSaveCountDown();
+    ImGui_ImplGlfw_ScrollCallback(window, x, y);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // PLATFORM
@@ -140,8 +185,12 @@ Application::Application(const Config &conf) :
     // center window
     if (conf.center && !conf.fullscreen)
         center_window(conf.monitor);
+
     // Setup GLFW callbacks
-    glfw_setup_window_callbacks(m_window, this);
+    if (m_conf.power_save)
+        glfw_setup_window_callbacks_with_power_save(m_window, this);
+    else
+        glfw_setup_window_callbacks(m_window, this);
     // Initialize OpenGL loader
     if (gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
         throw std::runtime_error("Failed to initialize GLAD OpenGL loader!");
@@ -149,7 +198,7 @@ Application::Application(const Config &conf) :
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     // configure ImGui
-    m_imgui_context = configureImGui(m_window, xscale);
+    m_imgui_context = configureImGui(m_window, xscale, m_conf.power_save);
     if (!m_imgui_context)
         throw std::runtime_error("Failed to create ImGui context!");
     m_implot_context = ImPlot::CreateContext();
@@ -159,13 +208,13 @@ Application::Application(const Config &conf) :
 }
 
 Application::Application() :
-    Application(Config({ "", 100, 100, 0, false, true, false, true, false, false, 4, true, true, true, true, Colors::Black })) {}
+    Application(Config({ "", 100, 100, 0, false, true, false, true, false, false, 4, true, true, true, true, true, Colors::Black })) {}
 
 Application::Application(const std::string &title, int monitor) :
-    Application(Config({title, 0, 0, monitor, true, false, true, true, false, false, 4, true, true, true, true, Colors::Black })) {}
+    Application(Config({title, 0, 0, monitor, true, false, true, true, false, false, 4, true, true, true, true, true, Colors::Black })) {}
 
 Application::Application(int width, int height, const std::string &title, bool resizable, int monitor) :
-    Application(Config({ title, width, height, monitor, false, resizable, true, true, false, true, 4, true, true, true, true, Colors::Black })) {}
+    Application(Config({ title, width, height, monitor, false, resizable, true, true, false, true, 4, true, true, true, true, true, Colors::Black })) {}
 
 Application::~Application() {
     ImGui_ImplOpenGL3_Shutdown();
@@ -257,6 +306,21 @@ void Application::render_imgui() {
     // Set Profile
 
     m_profile = prof;
+
+    // Power save
+    if (m_conf.power_save)
+    {
+        if (powerSaveCountDown)
+        {
+            --powerSaveCountDown;
+            glfwPollEvents();
+        }
+        else
+        {
+            ResetPowerSaveCountDown();
+            glfwWaitEvents();
+        }
+    }
 }
 
 
@@ -333,6 +397,21 @@ void Application::run() {
         // Set Profile
 
         m_profile = prof;
+
+        // Power save
+        if (m_conf.power_save)
+        {
+            if (powerSaveCountDown)
+            {
+                --powerSaveCountDown;
+                glfwPollEvents();
+            }
+            else
+            {
+                ResetPowerSaveCountDown();
+                glfwWaitEvents();
+            }
+        }
     }
     on_application_quit.emit();
 }
@@ -377,6 +456,11 @@ Vec2 Application::get_window_size() const {
 void Application::set_window_size_limits(int min_width, int min_height, int max_width,
                                          int max_height) {
     glfwSetWindowSizeLimits(m_window, min_width, min_height, max_width, max_height);
+}
+
+void Application::set_power_save(bool val)
+{
+    m_conf.power_save = val;
 }
 
 void Application::center_window(int monitorIdx) {
@@ -494,6 +578,19 @@ void glfw_setup_window_callbacks(GLFWwindow *window, void *userPointer) {
     glfwSetDropCallback(window, glfw_drop_callback);
 }
 
+void glfw_setup_window_callbacks_with_power_save(GLFWwindow* window, void* userPointer) {
+    glfwSetWindowUserPointer(window, userPointer);
+    glfwSetWindowSizeCallback(window, WindowResizeCallback);
+    glfwSetWindowPosCallback(window, WindowPosCallback);
+    glfwSetKeyCallback(window, KeyCallback);
+    glfwSetCharCallback(window, CharCallback);
+    glfwSetMouseButtonCallback(window, MouseButtonCallback);
+    glfwSetCursorPosCallback(window, MousePosCallback);
+    glfwSetScrollCallback(window, MouseWheelCallback);
+    glfwSetWindowCloseCallback(window, glfw_close_callback);
+    glfwSetDropCallback(window, glfw_drop_callback);
+}
+
 static void glfw_error_callback(int error, const char *description) {
     static std::string dsc = description;
     Application::on_error.emit(error, dsc);
@@ -507,6 +604,8 @@ static void glfw_pos_callback(GLFWwindow *window, int xpos, int ypos) {
 static void glfw_size_callback(GLFWwindow *window, int width, int height) {
     Application *app = static_cast<Application *>(glfwGetWindowUserPointer(window));
     app->on_window_resized.emit(width, height);
+
+
 }
 
 static void glfw_close_callback(GLFWwindow *window) {
@@ -533,7 +632,7 @@ static void glfw_drop_callback(GLFWwindow *window, int count, const char **paths
 ///////////////////////////////////////////////////////////////////////////////
 // IMGUI
 ///////////////////////////////////////////////////////////////////////////////
-static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale) {
+static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale, bool power_save) {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     auto context = ImGui::CreateContext();
@@ -614,7 +713,7 @@ static ImGuiContext* configureImGui(GLFWwindow *window, float dpi_scale) {
     // DPI scaling method 2:
     // style.ScaleAllSizes(dpi_scale);
 
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplGlfw_InitForOpenGL(window, !power_save);
 
     // Decide GL+GLSL versions
 #if __APPLE__
